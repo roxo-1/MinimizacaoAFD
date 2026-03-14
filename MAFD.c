@@ -53,7 +53,28 @@ typedef struct MAFD
 }MAFD;
 
 
-
+void carregarArquivo(const char *Nomearquivo, ListaDeLinhas *lista){
+    FILE *arquivo = fopen(Nomearquivo, "r");
+    lista->qtd =0;
+    if(arquivo==NULL){
+        printf("Erro: Não foi possível abrir o arquivo!");
+        return;
+    }
+    char linha[TAM_LINHAS];
+    while(fgets(linha, TAM_LINHAS, arquivo) != NULL){
+        if(linha[0]=='#'){
+            continue; //força o loop a continuar, ignorando essa linha
+        }
+        if(lista->qtd >= MAX_LINHAS){ // Se a lista encher, para de ler
+            printf("Limite de linhas atingido!");
+            break;
+        }
+        // Copia a linha para a lista de listas, onde armazenaremos as linhas para usá-las depois
+        strcpy(lista->texto[lista->qtd], linha);//destino -> origem, ou seja, veio do buffer "linha" e vai para a lista de lista
+        lista->qtd++;
+    }
+    fclose(arquivo);
+}
 
 int main(){
     return 0;
