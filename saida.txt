@@ -1,0 +1,25 @@
+# Automato Finito Determinístico Minimizado
+
+# Alfabeto
+ 0 1
+# Estados
+E s0
+
+# Estado Inicial
+
+q s0
+# Estados Finais
+
+s2
+
+# Transições
+T s0 0 s1
+T s0 1 s3
+T s1 0 s4
+T s1 1 s2
+T s2 0 s0
+T s2 1 s2
+T s3 0 s2
+T s3 1 s4
+T s4 0 s4
+T s4 1 s0

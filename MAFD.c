@@ -209,7 +209,203 @@ void removerEstadosInacessiveis(AFD *afd) {
     }
 }
 // Minimizar o autômato. 
-void minimizarAfd(){}
+void inicializarParticao(AFD *afd, int grupo[]) {
+    for (int i = 0; i < afd->qtd_estados; i++) {
+        grupo[i] = 0; // Assume que é não-final
+        for (int j = 0; j < afd->qtd_finais; j++) {
+            if (strcmp(afd->estados[i], afd->estados_finais[j]) == 0) {
+                grupo[i] = 1; // É final
+                break;
+            }
+        }
+    }
+}
+
+int destinoTransicao(AFD *afd, int estado_idx, char *simbolo) {
+    for (int i = 0; i < afd->qtd_transicoes; i++) {
+        char temp[TAM_TRANSICOES];
+        strcpy(temp, afd->transicoes[i]);
+        char *origem = strtok(temp, " ");
+        char *simb = strtok(NULL, " ");
+        char *dest = strtok(NULL, " ");
+
+        if (strcmp(origem, afd->estados[estado_idx]) == 0 && strcmp(simb, simbolo) == 0) {
+            return buscarIndice(afd, dest);
+        }
+    }
+    return -1;
+}
+
+void preencherMAFD(AFD *afd, MAFD *mafd, int grupo[], int qtd_vivos, int mapa[]) {
+    int max_grupo = -1;
+    for (int i = 0; i < qtd_vivos; i++) {
+        if (grupo[i] > max_grupo) max_grupo = grupo[i];
+    }
+    mafd->qtd_estados = max_grupo + 1;
+
+    // 1. Definir os nomes dos novos estados (G0, G1, etc)
+    for (int i = 0; i < mafd->qtd_estados; i++) {
+        sprintf(mafd->estados[i], "s%d", i);
+    }
+
+    // 2. Definir o Alfabeto (é o mesmo do original)
+    mafd->qtd_alfabeto = afd->qtd_alfabeto;
+    for (int i = 0; i < afd->qtd_alfabeto; i++) {
+        strcpy(mafd->alfabeto[i], afd->alfabeto[i]);
+    }
+
+    // 3. Definir o novo Estado Inicial
+    int idx_inicial_orig = buscarIndice(afd, afd->estado_inicial);
+    for (int i = 0; i < qtd_vivos; i++) {
+        if (mapa[i] == idx_inicial_orig) {
+            sprintf(mafd->estado_inicial, "s%d", grupo[i]);
+            break;
+        }
+    }
+
+    // 4. Definir os novos Estados Finais (sem repetir)
+    mafd->qtd_finais = 0;
+    bool grupo_ja_eh_final[MAX_ESTADOS] = {false};
+
+    for (int i = 0; i < qtd_vivos; i++) {
+        int idx_orig = mapa[i];
+        bool eh_final = false;
+        for (int f = 0; f < afd->qtd_finais; f++) {
+            if (strcmp(afd->estados[idx_orig], afd->estados_finais[f]) == 0) {
+                eh_final = true;
+                break;
+            }
+        }
+
+        if (eh_final && !grupo_ja_eh_final[grupo[i]]) {
+            strcpy(mafd->estados_finais[mafd->qtd_finais], mafd->estados[grupo[i]]);
+            grupo_ja_eh_final[grupo[i]] = true;
+            mafd->qtd_finais++;
+        }
+    }
+
+    // 5. Definir as novas Transições
+    mafd->qtd_transicoes = 0;
+    for (int g = 0; g < mafd->qtd_estados; g++) {
+        // Pega o primeiro estado que pertence a este grupo para ver para onde ele vai
+        int representante = -1;
+        for (int i = 0; i < qtd_vivos; i++) {
+            if (grupo[i] == g) {
+                representante = i;
+                break;
+            }
+        }
+
+        for (int s = 0; s < afd->qtd_alfabeto; s++) {
+            int dest_orig = destinoTransicao(afd, mapa[representante], afd->alfabeto[s]);
+            
+            // Descobre a qual grupo esse destino pertence
+            int grupo_dest = -1;
+            for (int k = 0; k < qtd_vivos; k++) {
+                if (mapa[k] == dest_orig) {
+                    grupo_dest = grupo[k];
+                    break;
+                }
+            }
+
+            if (grupo_dest != -1) {
+                sprintf(mafd->transicoes[mafd->qtd_transicoes], "%s %s %s", 
+                        mafd->estados[g], afd->alfabeto[s], mafd->estados[grupo_dest]);
+                mafd->qtd_transicoes++;
+            }
+        }
+    }
+}
+
+void minimizarAfd(AFD *afd, MAFD *mafd) {
+    int grupo[MAX_ESTADOS];
+    int novo_grupo[MAX_ESTADOS];
+    int qtd_estados_vivos = 0;
+    int mapa_antigo_novo[MAX_ESTADOS];
+
+    // 1. Filtrar apenas os alcancaveis para trabalhar
+    for (int i = 0; i < afd->qtd_estados; i++) {
+        if (afd->alcancaveis[i]) {
+            mapa_antigo_novo[qtd_estados_vivos] = i;
+            qtd_estados_vivos++;
+        }
+    }
+
+    // 2. Partição Inicial: Finais (1) vs Não-Finais (0)
+    for (int i = 0; i < qtd_estados_vivos; i++) {
+        int idx_original = mapa_antigo_novo[i];
+        grupo[i] = 0; 
+        for (int j = 0; j < afd->qtd_finais; j++) {
+            if (strcmp(afd->estados[idx_original], afd->estados_finais[j]) == 0) {
+                grupo[i] = 1;
+                break;
+            }
+        }
+    }
+
+    // 3. O Loop "Mudou" (Refinamento)
+    bool mudou = true;
+    while (mudou) {
+        mudou = false;
+        int proximo_id_grupo = 0;
+        
+        for (int i = 0; i < qtd_estados_vivos; i++) {
+            novo_grupo[i] = -1; // Reset para processar
+        }
+
+        for (int i = 0; i < qtd_estados_vivos; i++) {
+            if (novo_grupo[i] != -1) continue; // Já agrupado nesta rodada
+
+            novo_grupo[i] = proximo_id_grupo;
+            
+            for (int j = i + 1; j < qtd_estados_vivos; j++) {
+                if (novo_grupo[j] != -1) continue;
+
+                // Teste de Equivalência:
+                // Estão no mesmo grupo atual?
+                bool equivalentes = (grupo[i] == grupo[j]);
+                
+                if (equivalentes) {
+                    // Para cada símbolo do alfabeto, eles levam a grupos iguais?
+                    for (int s = 0; s < afd->qtd_alfabeto; s++) {
+                        int dest_i = destinoTransicao(afd, mapa_antigo_novo[i], afd->alfabeto[s]);
+                        int dest_j = destinoTransicao(afd, mapa_antigo_novo[j], afd->alfabeto[s]);
+                        
+                        // Encontra em qual índice da nossa lista "viva" esses destinos estão
+                        int g_i = -1, g_j = -1;
+                        for(int k=0; k<qtd_estados_vivos; k++) {
+                            if (mapa_antigo_novo[k] == dest_i) g_i = grupo[k];
+                            if (mapa_antigo_novo[k] == dest_j) g_j = grupo[k];
+                        }
+
+                        if (g_i != g_j) {
+                            equivalentes = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (equivalentes) {
+                    novo_grupo[j] = proximo_id_grupo;
+                }
+            }
+            proximo_id_grupo++;
+        }
+
+        // Verifica se o número de grupos aumentou (se alguém foi separado)
+        for (int i = 0; i < qtd_estados_vivos; i++) {
+            if (grupo[i] != novo_grupo[i]) {
+                mudou = true;
+            }
+            grupo[i] = novo_grupo[i];
+        }
+    }
+
+    // 4. Montar o MAFD baseado nos grupos resultantes
+    // (Aqui você traduz os grupos de volta para a struct MAFD)
+    preencherMAFD(afd, mafd, grupo, qtd_estados_vivos, mapa_antigo_novo);
+}
+
 
 // Gerar um novo arquivo contendo o AFD minimizado
 void saida(MAFD *mafd, const char *fileSaida){
@@ -220,16 +416,16 @@ void saida(MAFD *mafd, const char *fileSaida){
     }
     fprintf(file, "# Automato Finito Determinístico Minimizado\n");
     fprintf(file, "\n# Alfabeto\n");
-    for(int i=0; i < mafd->qtd_alfabeto; i++) fprintf(file, "%s ", mafd->alfabeto[i]);    
+    for(int i=0; i < mafd->qtd_alfabeto; i++) fprintf(file, " %s", mafd->alfabeto[i]);    
 
     fprintf(file, "\n# Estados\n");
-    fprintf(file, "\nE <%s>\n", mafd->estados);
+    fprintf(file, "E %s\n", mafd->estados);
 
     fprintf(file, "\n# Estado Inicial\n");
     fprintf(file, "\nq %s", mafd->estado_inicial);
 
     fprintf(file, "\n# Estados Finais\n");
-    for(int i=0; i < mafd->qtd_finais; i++) fprintf(file, "%s ", mafd->estados_finais[i]);
+    for(int i=0; i < mafd->qtd_finais; i++) fprintf(file, "\n%s\n", mafd->estados_finais[i]);
 
     fprintf(file, "\n# Transições\n");
     for(int i=0; i < mafd->qtd_transicoes; i++) fprintf(file, "T %s\n", mafd->transicoes[i]);
@@ -240,13 +436,16 @@ void saida(MAFD *mafd, const char *fileSaida){
 int main(){
     ListaDeLinhas entrada;
     AFD afd;
+    MAFD mafd;
     const char *file = "saida.txt";
     carregarArquivo("e1.txt", &entrada);
     processararAFD(&entrada, &afd);
     removerEstadosInacessiveis(&afd);
-    printf("Estados alcancados:\n");
-    for (int i = 0; i < afd.qtd_estados; i++) {
-        if (afd.alcancaveis[i]) printf("- %s\n", afd.estados[i]);
-    }
+    // printf("Estados alcancados:\n");
+    // for (int i = 0; i < afd.qtd_estados; i++) {
+    //     if (afd.alcancaveis[i]) printf("- %s\n", afd.estados[i]);
+    // }
+    minimizarAfd(&afd, &mafd);
+    saida(&mafd, file);
     return 0;
 }
