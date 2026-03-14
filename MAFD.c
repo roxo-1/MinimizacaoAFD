@@ -1,20 +1,17 @@
-
-// Remover estados inacessíveis (se houver). 
-// Minimizar o autômato. 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 // Definindo limites
 #define MAX_LINHAS 100
 #define TAM_LINHAS 256
 
-#define MAX_ALFABETO 50
-#define TAM_ALFABETO 50 
+#define MAX_ALFABETO 26
+#define TAM_ALFABETO 26 
 
-#define MAX_ESTADOS 50
-#define TAM_ESTADOS 50 
+#define MAX_ESTADOS 10
+#define TAM_ESTADOS 10 
 
 #define MAX_TRANSICOES 100
 #define TAM_TRANSICOES 100
@@ -44,6 +41,8 @@ typedef struct{
 
     char palavras[MAX_PALAVRAS][TAM_PALAVRAS];
     int qtd_palavras;
+
+    bool alcancaveis[MAX_ESTADOS];
 }AFD; //INICIAL
 
 typedef struct MAFD
@@ -65,6 +64,13 @@ typedef struct MAFD
     char palavras[MAX_PALAVRAS][TAM_PALAVRAS];
     int qtd_palavras;
 }MAFD; //DEPOIS DAS TRANSIÇÕES, RESULTADO
+
+int buscarIndice(AFD *afd, char *nomeEstado) {
+    for (int i = 0; i < afd->qtd_estados; i++) {
+        if (strcmp(afd->estados[i], nomeEstado) == 0) return i;
+    }
+    return -1;
+}
 
 // Ler e interpretar corretamente o autômato. 
 void carregarArquivo(const char *Nomearquivo, ListaDeLinhas *lista){
@@ -162,6 +168,48 @@ void processararAFD(ListaDeLinhas *lista, AFD *afd){
         }
     }
 }
+// Remover estados inacessíveis (se houver). 
+void removerEstadosInacessiveis(AFD *afd) {
+    // Inicializa alcancaveis como falso
+    for (int i = 0; i < afd->qtd_estados; i++) {
+        afd->alcancaveis[i] = false;
+    }
+
+    int idx_inicial = buscarIndice(afd, afd->estado_inicial);
+    if (idx_inicial == -1) return;
+
+    int fila[MAX_ESTADOS];
+    int frente = 0, tras = 0;
+
+    afd->alcancaveis[idx_inicial] = true;
+    fila[tras++] = idx_inicial;
+
+    while (frente < tras) {
+        int u_idx = fila[frente++];
+        char *nome_u = afd->estados[u_idx];
+
+        // Varre as transições para ver quem o estado 'u' alcança
+        for (int i = 0; i < afd->qtd_transicoes; i++) {
+            char temp[TAM_TRANSICOES];
+            strcpy(temp, afd->transicoes[i]); // Copia para não estragar a original com strtok
+            
+            char *origem = strtok(temp, " ");
+            char *simbolo = strtok(NULL, " ");
+            char *destino = strtok(NULL, " ");
+
+            // Se a transição parte do estado que estamos explorando
+            if (origem != NULL && strcmp(origem, nome_u) == 0) {
+                int v_idx = buscarIndice(afd, destino);
+                if (v_idx != -1 && !afd->alcancaveis[v_idx]) {
+                    afd->alcancaveis[v_idx] = true;
+                    fila[tras++] = v_idx;
+                }
+            }
+        }
+    }
+}
+// Minimizar o autômato. 
+void minimizarAfd(){}
 
 // Gerar um novo arquivo contendo o AFD minimizado
 void saida(MAFD *mafd, const char *fileSaida){
@@ -172,22 +220,33 @@ void saida(MAFD *mafd, const char *fileSaida){
     }
     fprintf(file, "# Automato Finito Determinístico Minimizado\n");
     fprintf(file, "\n# Alfabeto\n");
-    fprintf(file, "\nA <%s>\n", mafd->alfabeto);
+    for(int i=0; i < mafd->qtd_alfabeto; i++) fprintf(file, "%s ", mafd->alfabeto[i]);    
+
     fprintf(file, "\n# Estados\n");
     fprintf(file, "\nE <%s>\n", mafd->estados);
+
     fprintf(file, "\n# Estado Inicial\n");
-    fprintf(file, "\nq <%s>\n", mafd->estado_inicial);
+    fprintf(file, "\nq %s", mafd->estado_inicial);
+
     fprintf(file, "\n# Estados Finais\n");
-    fprintf(file, "\nF <%s>\n", mafd->estados_finais);
+    for(int i=0; i < mafd->qtd_finais; i++) fprintf(file, "%s ", mafd->estados_finais[i]);
+
     fprintf(file, "\n# Transições\n");
-    fprintf(file, "\nT <%s>\n", mafd->transicoes);
+    for(int i=0; i < mafd->qtd_transicoes; i++) fprintf(file, "T %s\n", mafd->transicoes[i]);
+
+    fclose(file);
 }
 
 int main(){
     ListaDeLinhas entrada;
     AFD afd;
-    MAFD mfad;
     const char *file = "saida.txt";
-    carregarArquivo("12.txt", &entrada);
+    carregarArquivo("e1.txt", &entrada);
+    processararAFD(&entrada, &afd);
+    removerEstadosInacessiveis(&afd);
+    printf("Estados alcancados:\n");
+    for (int i = 0; i < afd.qtd_estados; i++) {
+        if (afd.alcancaveis[i]) printf("- %s\n", afd.estados[i]);
+    }
     return 0;
 }
