@@ -44,13 +44,27 @@ typedef struct{
 
     char palavras[MAX_PALAVRAS][TAM_PALAVRAS];
     int qtd_palavras;
-}AFD;
+}AFD; //INICIAL
 
 typedef struct MAFD
 {
-    char estado[TAM_ESTADOS];
+    char alfabeto[MAX_ALFABETO][TAM_ALFABETO];
+    int qtd_alfabeto;
+
+    char estados[MAX_ESTADOS][TAM_ESTADOS];
+    int qtd_estados;
+
+    char estado_inicial[TAM_ESTADOS]; // Apenas 1 estado inicial
+
+    char estados_finais[MAX_ESTADOS][TAM_ESTADOS];
+    int qtd_finais;
+
+    char transicoes[MAX_TRANSICOES][TAM_TRANSICOES];
+    int qtd_transicoes;
+
     char palavras[MAX_PALAVRAS][TAM_PALAVRAS];
-}MAFD;
+    int qtd_palavras;
+}MAFD; //DEPOIS DAS TRANSIÇÕES, RESULTADO
 
 
 void carregarArquivo(const char *Nomearquivo, ListaDeLinhas *lista){
@@ -76,6 +90,30 @@ void carregarArquivo(const char *Nomearquivo, ListaDeLinhas *lista){
     fclose(arquivo);
 }
 
+void saida(MAFD *mafd, const char *fileSaida){
+    FILE *file = fopen(fileSaida, "w");
+    if (file == NULL) {
+        printf("Erro: Nao foi possivel criar o arquivo de saida.\n");
+        return; 
+    }
+    fprintf(file, "# Automato Finito Determinístico Minimizado\n");
+    fprintf(file, "\n# Alfabeto\n");
+    fprintf(file, "\nA <%s>\n", mafd->alfabeto);
+    fprintf(file, "\n# Estados\n");
+    fprintf(file, "\nE <%s>\n", mafd->estados);
+    fprintf(file, "\n# Estado Inicial\n");
+    fprintf(file, "\nq <%s>\n", mafd->estado_inicial);
+    fprintf(file, "\n# Estados Finais\n");
+    fprintf(file, "\nF <%s>\n", mafd->estados_finais);
+    fprintf(file, "\n# Transições\n");
+    fprintf(file, "\nT <%s>\n", mafd->transicoes);
+}
+
 int main(){
+    ListaDeLinhas entrada;
+    AFD afd;
+    MAFD mfad;
+    const char *file = "saida.txt";
+    carregarArquivo("12.txt", &entrada);
     return 0;
 }
