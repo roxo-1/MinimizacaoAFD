@@ -1,7 +1,7 @@
-// Ler e interpretar corretamente o autômato. 
+
 // Remover estados inacessíveis (se houver). 
 // Minimizar o autômato. 
-// Gerar um novo arquivo contendo o AFD minimizado
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,7 +66,7 @@ typedef struct MAFD
     int qtd_palavras;
 }MAFD; //DEPOIS DAS TRANSIÇÕES, RESULTADO
 
-
+// Ler e interpretar corretamente o autômato. 
 void carregarArquivo(const char *Nomearquivo, ListaDeLinhas *lista){
     FILE *arquivo = fopen(Nomearquivo, "r");
     lista->qtd =0;
@@ -90,6 +90,80 @@ void carregarArquivo(const char *Nomearquivo, ListaDeLinhas *lista){
     fclose(arquivo);
 }
 
+void processararAFD(ListaDeLinhas *lista, AFD *afd){
+    // Inicializa os contadores
+    afd->qtd_alfabeto = 0;
+    afd->qtd_estados = 0;
+    afd->qtd_finais = 0;
+    afd->qtd_transicoes = 0;
+    afd->qtd_palavras = 0;
+    char buffer[TAM_LINHAS];
+    
+    for(int i=0; i<lista->qtd; i++){
+        strcpy(buffer, lista->texto[i]);
+        
+        // Delimitadores: espaço, quebra de linha e tabulação
+        char *token = strtok(buffer, " \r\n"); 
+        
+        if(token == NULL) continue;
+
+        if(strcmp(token, "A") == 0) { // [cite: 22]
+            token = strtok(NULL, " \r\n"); 
+            while(token != NULL) {
+                strcpy(afd->alfabeto[afd->qtd_alfabeto], token);
+                afd->qtd_alfabeto++;
+                token = strtok(NULL, " \r\n"); // Correção: continua buscando por espaço
+            }
+        } 
+        else if(strcmp(token, "Q") == 0) { // [cite: 23]
+            token = strtok(NULL, " \r\n"); 
+            while(token != NULL) {
+                strcpy(afd->estados[afd->qtd_estados], token);
+                afd->qtd_estados++;
+                token = strtok(NULL, " \r\n");
+            }
+        }
+        else if(strcmp(token, "q") == 0) { // [cite: 24]
+            token = strtok(NULL, " \r\n");
+            if(token != NULL) {
+                strcpy(afd->estado_inicial, token);
+            }
+        }
+        else if(strcmp(token, "F") == 0) { // [cite: 25]
+            token = strtok(NULL, " \r\n"); 
+            while(token != NULL) {
+                strcpy(afd->estados_finais[afd->qtd_finais], token);
+                afd->qtd_finais++;
+                token = strtok(NULL, " \r\n");
+            }
+        }
+        else if(strcmp(token, "T") == 0) { // 
+            // Para transições, vamos guardar os tokens seguintes como uma string única ou processar
+            // Vamos assumir formato: T Origem Simbolo Destino
+            char t_origem[50], t_simb[50], t_dest[50];
+            
+            char *p1 = strtok(NULL, " \r\n");
+            char *p2 = strtok(NULL, " \r\n");
+            char *p3 = strtok(NULL, " \r\n");
+
+            if (p1 && p2 && p3) {
+                // Formata padronizado na struct: "Origem Simbolo Destino"
+                sprintf(afd->transicoes[afd->qtd_transicoes], "%s %s %s", p1, p2, p3);
+                afd->qtd_transicoes++;
+            }
+        }
+        else if(strcmp(token, "P") == 0) { // [cite: 27]
+            token = strtok(NULL, " \r\n");
+            while(token != NULL) {
+                strcpy(afd->palavras[afd->qtd_palavras], token);
+                afd->qtd_palavras++;
+                token = strtok(NULL, " \r\n");
+            }
+        }
+    }
+}
+
+// Gerar um novo arquivo contendo o AFD minimizado
 void saida(MAFD *mafd, const char *fileSaida){
     FILE *file = fopen(fileSaida, "w");
     if (file == NULL) {
