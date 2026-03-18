@@ -419,7 +419,12 @@ void saida(MAFD *mafd, const char *fileSaida){
     for(int i=0; i < mafd->qtd_alfabeto; i++) fprintf(file, " %s", mafd->alfabeto[i]);    
 
     fprintf(file, "\n# Estados\n");
-    fprintf(file, "E %s\n", mafd->estados);
+     fprintf(file, "Q");
+        for (int i = 0; i < mafd->qtd_estados; i++) {
+            fprintf(file, " [%s]", mafd->estados[i]);
+        }
+    fprintf(file, "\n");
+
 
     fprintf(file, "\n# Estado Inicial\n");
     fprintf(file, "\nq %s", mafd->estado_inicial);
